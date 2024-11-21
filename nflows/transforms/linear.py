@@ -47,7 +47,7 @@ class Linear(Transform):
         if not self.training and self.using_cache:
             self._check_forward_cache()
             outputs = F.linear(inputs, self.cache.weight, self.bias)
-            logabsdet = self.cache.logabsdet * torch.ones(outputs.shape[0])
+            logabsdet = self.cache.logabsdet * outputs.new_ones(outputs.shape[0])
             return outputs, logabsdet
         else:
             return self.forward_no_cache(inputs)
@@ -66,7 +66,7 @@ class Linear(Transform):
         if not self.training and self.using_cache:
             self._check_inverse_cache()
             outputs = F.linear(inputs - self.bias, self.cache.inverse)
-            logabsdet = (-self.cache.logabsdet) * torch.ones(outputs.shape[0])
+            logabsdet = (-self.cache.logabsdet) * outputs.new_ones(outputs.shape[0])
             return outputs, logabsdet
         else:
             return self.inverse_no_cache(inputs)
@@ -167,7 +167,7 @@ class NaiveLinear(Linear):
         batch_size = inputs.shape[0]
         outputs = F.linear(inputs, self._weight, self.bias)
         logabsdet = torchutils.logabsdet(self._weight)
-        logabsdet = logabsdet * torch.ones(batch_size)
+        logabsdet = logabsdet * outputs.new_ones(batch_size)
         return outputs, logabsdet
 
     def inverse_no_cache(self, inputs):
@@ -180,12 +180,13 @@ class NaiveLinear(Linear):
         """
         batch_size = inputs.shape[0]
         outputs = inputs - self.bias
-        outputs, lu = torch.solve(outputs.t(), self._weight)  # Linear-system solver.
-        outputs = outputs.t()
+        # LU-decompose the weights and solve for the outputs.
+        lu, lu_pivots = torch.lu(self._weight)
+        outputs = torch.lu_solve(outputs.t(), lu, lu_pivots).t()
         # The linear-system solver returns the LU decomposition of the weights, which we
         # can use to obtain the log absolute determinant directly.
         logabsdet = -torch.sum(torch.log(torch.abs(torch.diag(lu))))
-        logabsdet = logabsdet * torch.ones(batch_size)
+        logabsdet = logabsdet * outputs.new_ones(batch_size)
         return outputs, logabsdet
 
     def weight(self):
@@ -213,7 +214,9 @@ class NaiveLinear(Linear):
         """
         # If both weight inverse and logabsdet are needed, it's cheaper to compute both together.
         identity = torch.eye(self.features, self.features)
-        weight_inv, lu = torch.solve(identity, self._weight)  # Linear-system solver.
+        # LU-decompose the weights and solve for the outputs.
+        lu, lu_pivots = torch.lu(self._weight)
+        weight_inv = torch.lu_solve(identity, lu, lu_pivots)
         logabsdet = torch.sum(torch.log(torch.abs(torch.diag(lu))))
         return weight_inv, logabsdet
 

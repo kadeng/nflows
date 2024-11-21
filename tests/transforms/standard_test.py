@@ -58,9 +58,11 @@ class AffineScalarTransformTest(TransformTest):
                 )
 
         self.eps = 1e-6
-        test_case(None, 2.0, inputs + 2.0, 0)
+        test_case(None, 2.0, inputs + 2.0, 0.)
         test_case(2.0, None, inputs * 2.0, np.log(2.0))
         test_case(2.0, 2.0, inputs * 2.0 + 2.0, np.log(2.0))
+        test_case(-1.0, None, -inputs, 0.0)
+        test_case(-2.0, 2.0, inputs * -2.0 + 2.0, np.log(2.0))
 
     def test_inverse(self):
         batch_size = 10
@@ -79,9 +81,11 @@ class AffineScalarTransformTest(TransformTest):
                 )
 
         self.eps = 1e-6
-        test_case(None, 2.0, inputs - 2.0, 0)
+        test_case(None, 2.0, inputs - 2.0, 0.)
         test_case(2.0, None, inputs / 2.0, -np.log(2.0))
         test_case(2.0, 2.0, (inputs - 2.0) / 2.0, -np.log(2.0))
+        test_case(-1.0, None, -inputs, 0.0)
+        test_case(-2.0, 2.0, (inputs - 2.0) / -2.0, -np.log(2.0))
 
     def test_forward_inverse_are_consistent(self):
         batch_size = 10
@@ -96,6 +100,15 @@ class AffineScalarTransformTest(TransformTest):
         test_case(None, 2.0)
         test_case(2.0, None)
         test_case(2.0, 2.0)
+        test_case(-1.0, None)
+        test_case(-2.0, 2.0)
+        
+    def test_raises_value_error(self):    
+        def test_case(shift):
+            with self.assertRaises(ValueError):
+                transform = standard.AffineTransform(scale=0.0, shift=shift)
+            
+        test_case(None)
 
 
 if __name__ == "__main__":

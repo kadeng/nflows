@@ -15,6 +15,23 @@ from nflows.transforms.base import (
 from nflows.utils import torchutils
 
 
+class Exp(Transform):
+    def forward(self, inputs, context=None):
+        outputs = torch.exp(inputs)
+        logabsdet = torchutils.sum_except_batch(inputs, num_batch_dims=1)
+
+        return outputs, logabsdet
+    
+    def inverse(self, inputs, context=None):
+        if torch.min(inputs) <= 0.:
+            raise InputOutsideDomain()
+
+        outputs = torch.log(inputs)
+        logabsdet = -torchutils.sum_except_batch(outputs, num_batch_dims=1)
+
+        return outputs, logabsdet
+
+
 class Tanh(Transform):
     def forward(self, inputs, context=None):
         outputs = torch.tanh(inputs)
@@ -126,7 +143,8 @@ class Sigmoid(Transform):
         if learn_temperature:
             self.temperature = nn.Parameter(torch.Tensor([temperature]))
         else:
-            self.temperature = torch.Tensor([temperature])
+            temperature = torch.Tensor([temperature])
+            self.register_buffer('temperature', temperature)
 
     def forward(self, inputs, context=None):
         inputs = self.temperature * inputs
